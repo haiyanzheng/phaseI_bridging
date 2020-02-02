@@ -1,6 +1,5 @@
 rm(list=ls())
 
-# setwd("~/Dropbox/Bayes_SafeDoseFIH_Lisa/Year3_AW2E/Code")
 set.seed(684324)
 library(R2OpenBUGS)
 
