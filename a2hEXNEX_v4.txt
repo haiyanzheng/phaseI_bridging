@@ -1,0 +1,150 @@
+model{
+	# sampling model
+	# Mdoses: total number of doses tested in animal species
+	for(j in 1:MdoseA){
+	linA[j] <- theta[StudyA[j], 1] 
+			+ exp(theta[StudyA[j], 2])*log(deltaA[Species[j]]*DoseA[j]/DoseRef)
+	logit(pToxA[j]) <- linA[j]
+	NtoxA[j] ~ dbin(pToxA[j], NsubA[j])
+	}
+
+	zero[1] <- 0
+	zero[2] <- 0
+
+	# theta = (theta[i, 1], theta[i, 2]) derived from each animal study are ready for the use
+	# on the equivalent human dosing scale
+	for(i in 1:NstudyA){
+		for(j in 1:MdoseH){
+			lin[i, j] <- theta[i, 1] + exp(theta[i, 2])*log(DoseH[j]/DoseRef)
+		}
+
+		# sp.ind[i]: index function to specify
+		# which animal species the Study i belongs to
+		theta[i, 1] <- mu.sp[sp.ind[i], 1] + re.A[i, 1]
+		theta[i, 2] <- mu.sp[sp.ind[i], 2] + re.A[i, 2]
+		re.A[i, 1:2] ~ dmnorm(zero[1:2], prec.Psi[1:2, 1:2])
+
+			# PInd[]: matrice of the trivial/non-trivial weights
+			# trivial weights for animals means 0 prob of NEX
+			# to assure theta_i are fully exchangeable withing the same species
+			sp.ind[i] ~ dcat(PInd[i, 1:n.sp])
+	}
+
+	# the K EX distributions based upon animal species clusters
+	for(k in 1:n.sp){
+		deltaA[k] <- exp(Prior.mn.delta[k] + Prior.sd.delta[k]*log.delta01[k])
+		log.delta01[k] ~ dnorm(0, 1)
+		mu.sp[k, 1] <- muA[1] + re.m[k, 1]
+		mu.sp[k, 2] <- muA[2] + re.m[k, 2]
+		re.m[k, 1:2] ~ dmnorm(zero[1:2], prec.Sigma[1:2, 1:2])
+
+		theta.predH[k, 1] <- mu.sp[k, 1] + re.h[k, 1]
+		theta.predH[k, 2] <- mu.sp[k, 2] + re.h[k, 2]
+		re.h[k, 1:2] ~ dmnorm(zero[1:2], prec.Psi[1:2, 1:2])
+	}
+
+
+	for(i in 1:n.sb){
+
+		for(k in 1:n.sp){
+			mix.theta[i, k, 1] <- theta.predH[k, 1] 
+			mix.theta[i, k, 2] <- theta.predH[k, 2]
+		}
+
+			mix.theta[i, (n.sp+1), 1] <- muH[1] + re.s[i, 1]
+			mix.theta[i, (n.sp+1), 2] <- muH[2] + re.s[i, 2]
+			re.s[i, 1:2] ~ dmnorm(zero[1:2], prec.Phi[1:2, 1:2])
+
+			mix.theta[i, (n.sp+2), 1:2] ~ dmnorm(Prior.mw[1:2], prec.sw[1:2, 1:2])
+
+		# pick theta
+		theta.star[i, 1] <- mix.theta[i, exch.ind[i], 1]
+		theta.star[i, 2] <- mix.theta[i, exch.ind[i], 2]
+
+		# latent mixture indicators:
+		exch.ind[i] ~ dcat(wMix[i, 1:(n.sp+2)])	
+			for(ii in 1:(n.sp+2)){
+				each[i, ii] <- equals(exch.ind[i], ii)
+			}
+
+		# Update theta.star[i, 1:2] using the phase I trial data from various subgroups
+		for(j in 1:MdoseH){
+			linH[i, j] <- theta.star[i, 1] 
+					+ exp(theta.star[i, 2])*log(epsilonH[i]*DoseH[j]/DoseRef)
+			logit(pToxH[i, j]) <- linH[i, j]
+			NtoxH[i, j] ~ dbin(pToxH[i, j], NsubH[i, j])
+
+			pCat[i, j, 1] <- step(pTox.cut[1] - pToxH[i, j])
+			pCat[i, j, 2] <- step(pTox.cut[2] - pToxH[i, j]) 
+						- step(pTox.cut[1] - pToxH[i, j])
+			pCat[i, j, 3] <- step(1 - pToxH[i, j]) 
+						- step(pTox.cut[2] - pToxH[i, j])
+		}
+			epsilonH[i] <- Prior.mn.epsilon[i] + Prior.sd.epsilon[i]*epsilon01[i]
+			epsilon01[i] ~ dnorm(0, 1)I(-3.921, 3.921)
+			# -3.921 = -1/0.255 has been computed so that epsilonH[i] > 0 
+
+	}
+
+# Hyperpriors for the human-specific population means muH[1:2]
+muH[1] ~ dnorm(Prior.mH1[1], prec.mH1)I(-10, 10)
+muH[2] ~ dnorm(Prior.mH2[1], prec.mH2)I(-5, 5)
+
+prec.mH1 <- pow(Prior.mH1[2], -2)
+prec.mH2 <- pow(Prior.mH2[2], -2)
+
+# Hyperpriors for the `supra-spiece' population means muA[1:2] 
+muA[1] ~ dnorm(Prior.mA1[1], prec.mA1)I(-10, 10)
+muA[2] ~ dnorm(Prior.mA2[1], prec.mA2)I(-5, 5)
+
+prec.mA1 <- pow(Prior.mA1[2], -2)
+prec.mA2 <- pow(Prior.mA2[2], -2)
+
+# Hyperpriors for the covariance matrix, prec.Psi[1:2, 1:2]
+prec.tau1 <- pow(Prior.tau.HN[1], -2)
+prec.tau2 <- pow(Prior.tau.HN[2], -2)
+tauA[1] ~ dnorm(0, prec.tau1)I(0.001,)
+tauA[2] ~ dnorm(0, prec.tau2)I(0.001,)
+
+covA.ex[1, 1] <- pow(tauA[1], 2)
+covA.ex[2, 2] <- pow(tauA[2], 2)
+covA.ex[1, 2] <- tauA[1]*tauA[2]*rhoA
+covA.ex[2, 1] <- covA.ex[1, 2]
+prec.Psi[1:2, 1:2] <- inverse(covA.ex[1:2, 1:2])
+
+	rhoA ~ dunif(Prior.rho[1], Prior.rho[2])
+
+# Hyperpriors for the covariance matrix, prec.Sigma[1:2, 1:2]
+prec.sigma1 <- pow(Prior.sigma.HN[1], -2)
+prec.sigma2 <- pow(Prior.sigma.HN[2], -2)
+sigma[1] ~ dnorm(0, prec.sigma1)I(0.001,)
+sigma[2] ~ dnorm(0, prec.sigma2)I(0.001,)
+covA.sig[1, 1] <- pow(sigma[1], 2)
+covA.sig[2, 2] <- pow(sigma[2], 2)
+covA.sig[1, 2] <- sigma[1]*sigma[2]*kappaA
+covA.sig[2, 1] <- covA.sig[1, 2]
+prec.Sigma[1:2, 1:2] <- inverse(covA.sig[1:2, 1:2])
+
+	kappaA ~ dunif(Prior.kappa[1], Prior.kappa[2])
+
+# Hyperpriors for the covariance matrix, prec.Phi[1:2, 1:2]
+prec.tau3 <- pow(Prior.tau.HN[3], -2)
+prec.tau4 <- pow(Prior.tau.HN[4], -2)
+tauH[1] ~ dnorm(0, prec.tau3)I(0.001,)
+tauH[2] ~ dnorm(0, prec.tau4)I(0.001,)
+
+covH.ex[1, 1] <- pow(tauH[1], 2)
+covH.ex[2, 2] <- pow(tauH[2], 2)
+covH.ex[1, 2] <- tauH[1]*tauH[2]*rhoH
+covH.ex[2, 1] <- covH.ex[1, 2]
+prec.Phi[1:2, 1:2] <- inverse(covH.ex[1:2, 1:2])
+
+	rhoH ~ dunif(Prior.rho[1], Prior.rho[2])
+
+# Weakly-informative hyperpriors for the covariance matrix, prec.sw[1:2, 1:2]
+cov.rb[1, 1] <- pow(Prior.sw[1], 2)
+cov.rb[2, 2] <- pow(Prior.sw[2], 2)
+cov.rb[1, 2] <- Prior.sw[1]*Prior.sw[2]*Prior.corr
+cov.rb[2, 1] <- cov.rb[1, 2]
+prec.sw[1:2, 1:2] <- inverse(cov.rb[1:2, 1:2])
+}
