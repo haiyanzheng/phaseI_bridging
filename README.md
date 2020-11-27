@@ -1,5 +1,5 @@
 # phaseI_bridging
-OpenBUGS code and R functions to implement the Bayesian hierarchical model for leveraging animal data in phase I oncology trials.
+OpenBUGS code and R functions to implement the Bayesian hierarchical model for leveraging animal data in phase I oncology trials, involving potentially heterogeneous patient subgroups.
 
 Files contained in this repository can be used to reproduce the numerical results reported in the paper entitled
 # H. Zheng., L.V. Hampson., T. Jaki. (2020). Bridging across patient subgroups in phase I oncology trials that incorporate animal data. *A submitted paper*.
