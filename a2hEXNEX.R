@@ -80,7 +80,7 @@ inits <- function(){
 parameters <- c("each", "pToxH")
 
 
-MCMCSim <- bugs(data, inits, parameters, "a2hEXNEX_v4.txt", codaPkg = F, 
+MCMCSim <- bugs(data, inits, parameters, "a2hEXNEX.txt", codaPkg = F, 
                 # OpenBUGS.pgm = "/opt/openbugs/bin/OpenBUGS",
                 n.chains = 2, n.burnin = 3000, n.iter = 13000)
 
